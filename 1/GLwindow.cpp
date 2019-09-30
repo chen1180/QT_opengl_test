@@ -4,7 +4,8 @@
 #include<iostream>
 #include<fstream>
 #include<sstream>
-#include<QFile>
+#include<QVector4D>
+#include<QMatrix4x4>
 GLuint MyGLwidget::LoadShaders(QString vertexShaderFile, QString fragmentShaderFile){
     m_VertexShader = new QOpenGLShader(QOpenGLShader::Vertex);
     bool isOk=m_VertexShader->compileSourceFile(vertexShaderFile);
@@ -32,7 +33,18 @@ void MyGLwidget::initializeGL()
 {
     initializeOpenGLFunctions();
     glClearColor(0,0,0,1);
+    //Timer that can pass to vertex shader for interesting effect!
     timer.start();
+    QMatrix4x4 mat=QMatrix4x4();
+    //print out the matrix for debug
+    for (int i=1;i<=16;i++)
+    {
+        std::cout<<*(mat.data()+i-1);
+        if (i%4==0){
+            std::cout<<std::endl;
+        }
+    }
+
 }
 void MyGLwidget::paintGL(){
     GLint timelapsed=timer.elapsed();
@@ -67,7 +79,7 @@ void MyGLwidget::paintGL(){
     try
     {
         // Create and compile our GLSL program from the shaders
-        GLuint programID = LoadShaders( "vertexShader.vert", "fragmentShader.frag" );
+        GLuint programID = LoadShaders( "../vertexShader.vert", "../fragmentShader.frag" );
         // Use our shader
         glUseProgram(programID);
         f->glUniform2f(f->glGetUniformLocation(programID,"mouse_loc"),this->pos().x(),this->pos().y());
