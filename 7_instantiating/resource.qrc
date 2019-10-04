@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/">
+        <file>texture.jpeg</file>
+        <file>default shader/fragmentShader.frag</file>
+        <file>default shader/vertexShader.vert</file>
+        <file>normal shader/normalGeometry.gs</file>
+        <file>normal shader/normalFragment.frag</file>
+        <file>normal shader/normalVertex.vert</file>
+    </qresource>
+</RCC>
