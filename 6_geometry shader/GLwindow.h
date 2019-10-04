@@ -15,7 +15,7 @@ private:
     QTime timer;
     QOpenGLShader *m_VertexShader;
     QOpenGLShader *m_FragmentShader;
-    QOpenGLShaderProgram *m_Program;
+    QOpenGLShader *m_GeometryShader;
     QOpenGLTexture *textureID;
 
     GLuint VertexArrayID;
@@ -23,13 +23,14 @@ private:
     // This will identify our color buffer
     GLuint uvbuffer;
     GLuint vertexNormalbuffer;
-    GLuint programID;
+    GLuint defaultShader;
+    GLuint normalShader;
     //trackball camera
     TrackBall m_trackBalls;
 
 
 protected:
-    GLuint LoadShaders(QString vertexShaderFile,QString fragmentShaderFile);
+    GLuint LoadShaders(QString vertexShaderFile,QString fragmentShaderFile,QString geometryShaderFile=NULL);
     void initializeGL();
     void paintGL();
     void loadGLTextures();

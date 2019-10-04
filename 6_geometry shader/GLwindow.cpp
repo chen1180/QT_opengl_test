@@ -12,27 +12,53 @@
 //#include<glm/gtc/matrix_transform.hpp>
 #include<QImage>
 #include<QDebug>
-GLuint MyGLwidget::LoadShaders(QString vertexShaderFile, QString fragmentShaderFile){
-    m_VertexShader = new QOpenGLShader(QOpenGLShader::Vertex);
-    bool isOk=m_VertexShader->compileSourceFile(vertexShaderFile);
-    if (!isOk)
-    {
+GLuint MyGLwidget::LoadShaders(QString vertexShaderFile, QString fragmentShaderFile,QString geometryShaderFile){
+    QOpenGLShaderProgram *m_Program = new QOpenGLShaderProgram(this);
+    try{
+        m_VertexShader = new QOpenGLShader(QOpenGLShader::Vertex);
+        bool isOk=m_VertexShader->compileSourceFile(vertexShaderFile);
+        if (!isOk)
+        {
+            throw("couldn't load vertexShader");
+        }
+        else m_Program->addShader(m_VertexShader);
+    }catch (const char* msg) {
+        std::cerr<< msg << std::endl;
         delete m_VertexShader;
         m_VertexShader=nullptr;
-        throw("couldn't load vertexShader");
     }
-    m_FragmentShader = new QOpenGLShader(QOpenGLShader::Fragment);
-    if (!m_FragmentShader->compileSourceFile(fragmentShaderFile))
-    {
-        delete m_VertexShader;
+    try{
+        m_FragmentShader = new QOpenGLShader(QOpenGLShader::Fragment);
+        if (!m_FragmentShader->compileSourceFile(fragmentShaderFile))
+        {
+            throw("couldn't load fragmentShader");
+        }else m_Program->addShader(m_FragmentShader);
+    }catch (const char* msg) {
+        std::cerr<< msg << std::endl;
         delete m_FragmentShader;
         m_FragmentShader = nullptr;
-        throw("couldn't load fragmentShader");
     }
-    m_Program = new QOpenGLShaderProgram(this);
-    m_Program->addShader(m_VertexShader);
-    m_Program->addShader(m_FragmentShader);
-    m_Program->link();
+    if (!geometryShaderFile.isNull()){
+        try{
+            m_GeometryShader = new QOpenGLShader(QOpenGLShader::Geometry);
+            if (!m_GeometryShader->compileSourceFile(geometryShaderFile))
+            {
+                throw("couldn't load geometrytShader");
+            }else m_Program->addShader(m_GeometryShader);
+        }catch (const char* msg) {
+            std::cerr<< msg << std::endl;
+            delete m_GeometryShader;
+            m_GeometryShader = nullptr;
+        }
+
+    }
+    try{
+        m_Program->link();
+
+    }catch (const char* msg) {
+        std::cerr<< msg << std::endl;
+    }
+
     return m_Program->programId();
 }
 void MyGLwidget::initializeGL()
@@ -138,18 +164,40 @@ void MyGLwidget::initializeGL()
     // Give our vertices to OpenGL.
     f->glBufferData(GL_ARRAY_BUFFER, sizeof(g_uv_buffer_data), g_uv_buffer_data, GL_STATIC_DRAW);
     //trianle normal vector
-
-    try
-    {
-        // Create and compile our GLSL program from the shaders
-        programID = LoadShaders( ":/vertexShader.vert", ":/fragmentShader.frag" );
-        // Use our shader
-        glUseProgram(programID);
-
-    }catch (const char* msg) {
-        std::cerr<< msg << std::endl;
+    //use vertex coordinate to calculate normal vector of triangles
+    GLfloat v_normal_buffer_data[sizeof(g_vertex_buffer_data)/sizeof(g_vertex_buffer_data[0])/3][3];
+    for (unsigned int i=0;i<sizeof(g_vertex_buffer_data)/sizeof(g_vertex_buffer_data[0])/3;i++){
+        v_normal_buffer_data[i][0]=g_vertex_buffer_data[i*3];
+        v_normal_buffer_data[i][1]=g_vertex_buffer_data[i*3+1];
+        v_normal_buffer_data[i][2]=g_vertex_buffer_data[i*3+2];
     }
-
+    //debug
+    //    for (unsigned int i=0;i<sizeof(g_vertex_buffer_data)/sizeof(g_vertex_buffer_data[0])/3;i++){
+    //        qDebug()<<v_normal_buffer_data[i][0]<<v_normal_buffer_data[i][1]<<v_normal_buffer_data[i][2];
+    //    }
+    GLuint norml_buffer_size=sizeof(v_normal_buffer_data)/sizeof(v_normal_buffer_data[0]);
+    QVector3D normal_buffer_data[norml_buffer_size];
+    for (unsigned int i=0;i<norml_buffer_size;i+=3){
+        //
+        QVector3D v1=QVector3D(v_normal_buffer_data[i][0],v_normal_buffer_data[i][1],v_normal_buffer_data[i][2]);
+        QVector3D v2=QVector3D(v_normal_buffer_data[i+1][0],v_normal_buffer_data[i+1][1],v_normal_buffer_data[i+1][2]);
+        QVector3D v3=QVector3D(v_normal_buffer_data[i+2][0],v_normal_buffer_data[i+2][1],v_normal_buffer_data[i+2][2]);
+        QVector3D triangle_normal=QVector3D::crossProduct(v2-v1,v3-v1).normalized();
+        normal_buffer_data[i]=triangle_normal;
+        normal_buffer_data[i+1]=triangle_normal;
+        normal_buffer_data[i+2]=triangle_normal;
+    }
+    //debug
+    //    for (unsigned int i=0;i<norml_buffer_size;i++){
+    //        qDebug()<<normal_buffer_data[i];
+    //    }
+    //bind normal buffer
+    glGenBuffers(1,&vertexNormalbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER,vertexNormalbuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(normal_buffer_data), &normal_buffer_data[0], GL_STATIC_DRAW);
+    //compile shaders
+    defaultShader = LoadShaders( ":/default shader/vertexShader.vert", ":/default shader/fragmentShader.frag");
+    normalShader=LoadShaders( ":/normal shader/normalVertex.vert",  ":/normal shader/normalFragment.frag",":/normal shader/normalGeometry.gs");
 
 }
 void MyGLwidget::paintGL(){
@@ -170,29 +218,51 @@ void MyGLwidget::paintGL(){
     f->glEnableVertexAttribArray(1);
     f->glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
     f->glVertexAttribPointer(
-                1,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+                1,                  // attribute 1. No particular reason for 0, but must match the layout in the shader.
                 2,                  // size
                 GL_FLOAT,           // type
                 GL_FALSE,           // normalized?
                 0,                  // stride
                 nullptr            // array buffer offset
                 );
-    QMatrix4x4 Projection,View,Model,MVP;
+    //3rd attribute buffer: Normal
+    f->glEnableVertexAttribArray(2);
+    f->glBindBuffer(GL_ARRAY_BUFFER,vertexNormalbuffer);
+    f->glVertexAttribPointer(
+                2,                  // attribute 2. No particular reason for 0, but must match the layout in the shader.
+                3,                  // size
+                GL_FLOAT,           // type
+                GL_FALSE,           // normalized?
+                0,                  // stride
+                nullptr            // array buffer offset
+                );
+    //Camera transformation
+    QMatrix4x4 Projection,View,Model;
     Projection.perspective(45.0f,(float)(this->width()/this->height()),0.1f,100.0f);
-//    View.lookAt(m_trackBalls.getRotation().vector(),QVector3D(0.0,0.0,0.0),QVector3D(0.0,1.0,0.0));
     View.rotate(m_trackBalls.getRotation());
     View(2, 3) -=m_trackBalls.getZoomFactor();
-    MVP=Projection * View * Model;
-    // Send our transformation to the currently bound shader, in the "MVP" uniform
-    // This is done in the main loop since each model will have a different MVP matrix (At least for the M part)
-    f->glUniformMatrix4fv(f->glGetUniformLocation(programID,"MVP"),1,GL_FALSE,MVP.constData());
-    f->glUniform1f(f->glGetUniformLocation(programID,"myTextureSampler"),textureID->textureId());
+    //Transfer data into Opengl pipeline, communnicate with shader
+    f->glUniformMatrix4fv(f->glGetUniformLocation(defaultShader,"projection"),1,GL_FALSE,Projection.constData());
+    f->glUniformMatrix4fv(f->glGetUniformLocation(defaultShader,"view"),1,GL_FALSE,View.constData());
+    f->glUniformMatrix4fv(f->glGetUniformLocation(defaultShader,"model"),1,GL_FALSE,Model.constData());
+    f->glUniform1f(f->glGetUniformLocation(defaultShader,"myTextureSampler"),textureID->textureId());
     textureID->bind(0);
     // Draw the triangle !
+    // Use our shader
+    glUseProgram(defaultShader);
     f->glDrawArrays(GL_TRIANGLES, 0, 12*3); // Starting from vertex 0; 3 vertices total -> 1 triangle
+    //Transfer data into Opengl pipeline, communnicate with shader
+    f->glUniformMatrix4fv(f->glGetUniformLocation(normalShader,"projection"),1,GL_FALSE,Projection.constData());
+    f->glUniformMatrix4fv(f->glGetUniformLocation(normalShader,"view"),1,GL_FALSE,View.constData());
+    f->glUniformMatrix4fv(f->glGetUniformLocation(normalShader,"model"),1,GL_FALSE,Model.constData());
+    f->glUniform1f(f->glGetUniformLocation(normalShader,"myTextureSampler"),textureID->textureId());
+    //Display normal vector of each vertices
+    glUseProgram(normalShader);
+    f->glDrawArrays(GL_TRIANGLES, 0, 12*3);
     f->glViewport(int(this->width()/2),0,this->width()/2,this->height()/2);
     f->glDisableVertexAttribArray(0);
     f->glDisableVertexAttribArray(1);
+    f->glDisableVertexAttribArray(2);
     this->update();
 }
 void MyGLwidget::loadGLTextures(){

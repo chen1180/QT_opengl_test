@@ -27,6 +27,9 @@ DISTFILES += \
     build/.qmake.stash \
     build/debug/project.exe \
     fragmentShader.frag \
+    normalFragment.frag \
+    normalGeometryShader.gs \
+    normalVertex.vert \
     vertexShader.vert
 
 HEADERS += \
