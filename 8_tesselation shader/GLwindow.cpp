@@ -12,7 +12,7 @@
 //#include<glm/gtc/matrix_transform.hpp>
 #include<QImage>
 #include<QDebug>
-GLuint MyGLwidget::LoadShaders(QString vertexShaderFile, QString fragmentShaderFile,QString geometryShaderFile){
+GLuint MyGLwidget::LoadShaders(QString vertexShaderFile, QString fragmentShaderFile, QString geometryShaderFile, QString tesControlShaderFile, QString tesEvalShaderFile){
     QOpenGLShaderProgram *m_Program = new QOpenGLShaderProgram(this);
     try{
         m_VertexShader = new QOpenGLShader(QOpenGLShader::Vertex);
@@ -52,6 +52,32 @@ GLuint MyGLwidget::LoadShaders(QString vertexShaderFile, QString fragmentShaderF
         }
 
     }
+    if (!tesControlShaderFile.isNull()){
+        try{
+            m_TesControlShader = new QOpenGLShader(QOpenGLShader::TessellationControl);
+            if (!m_TesControlShader->compileSourceFile(tesControlShaderFile))
+            {
+                throw("couldn't load TessellationControl shader");
+            }else m_Program->addShader(m_TesControlShader);
+        }catch (const char* msg) {
+            std::cerr<< msg << std::endl;
+            delete m_TesControlShader;
+            m_TesControlShader = nullptr;
+        }
+    }
+    if (!tesEvalShaderFile.isNull()){
+        try{
+            m_TesEvalShader = new QOpenGLShader(QOpenGLShader::TessellationEvaluation);
+            if (!m_TesEvalShader->compileSourceFile(tesEvalShaderFile))
+            {
+                throw("couldn't load TessellationEvaluation shader");
+            }else m_Program->addShader(m_TesEvalShader);
+        }catch (const char* msg) {
+            std::cerr<< msg << std::endl;
+            delete m_TesEvalShader;
+            m_TesEvalShader = nullptr;
+        }
+    }
     try{
         m_Program->link();
 
@@ -69,7 +95,6 @@ void MyGLwidget::initializeGL()
     glClearColor(0,0,0,1);
     // Enable depth test
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_MULTISAMPLE);
     // Accept fragment if it closer to the camera than the former one
     glDepthFunc(GL_LESS);
     QOpenGLFunctions_4_4_Core *f=QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_4_4_Core>();
@@ -80,7 +105,7 @@ void MyGLwidget::initializeGL()
     static const GLfloat g_vertex_buffer_data[] = {
         -1.0f,-1.0f,-1.0f, // triangle 1 : begin
         -1.0f,-1.0f, 1.0f,
-        -1.0f, 1.0f, 1.0f, // triangle 1 : end
+        -1.0f, 1.0f, 1.0f/*, // triangle 1 : end
         1.0f, 1.0f,-1.0f, // triangle 2 : begin
         -1.0f,-1.0f,-1.0f,
         -1.0f, 1.0f,-1.0f, // triangle 2 : end
@@ -113,7 +138,7 @@ void MyGLwidget::initializeGL()
         -1.0f, 1.0f, 1.0f,
         1.0f, 1.0f, 1.0f,
         -1.0f, 1.0f, 1.0f,
-        1.0f,-1.0f, 1.0f
+        1.0f,-1.0f, 1.0f*/
     };
     // Generate 1 buffer, put the resulting identifier in vertexbuffer
     f->glGenBuffers(1, &vertexbuffer);
@@ -125,7 +150,7 @@ void MyGLwidget::initializeGL()
     static const GLfloat g_uv_buffer_data[] = {
         0.000059f, 1.0f-0.000004f,
         0.000103f, 1.0f-0.336048f,
-        0.335973f, 1.0f-0.335903f,
+        0.335973f, 1.0f-0.335903f/*,
         1.000023f, 1.0f-0.000013f,
         0.667979f, 1.0f-0.335851f,
         0.999958f, 1.0f-0.336064f,
@@ -158,7 +183,7 @@ void MyGLwidget::initializeGL()
         0.335973f, 1.0f-0.335903f,
         0.667969f, 1.0f-0.671889f,
         1.000004f, 1.0f-0.671847f,
-        0.667979f, 1.0f-0.335851f
+        0.667979f, 1.0f-0.335851f*/
     };
     f->glGenBuffers(1,&uvbuffer);
     f->glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
@@ -193,22 +218,17 @@ void MyGLwidget::initializeGL()
     //        qDebug()<<normal_buffer_data[i];
     //    }
     //bind normal buffer
-    glGenBuffers(1,&vertexNormalbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER,vertexNormalbuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(normal_buffer_data), &normal_buffer_data[0], GL_STATIC_DRAW);
+    f->glGenBuffers(1,&vertexNormalbuffer);
+    f->glBindBuffer(GL_ARRAY_BUFFER,vertexNormalbuffer);
+    f->glBufferData(GL_ARRAY_BUFFER, sizeof(normal_buffer_data), &normal_buffer_data[0], GL_STATIC_DRAW);
+    //patch vertices
+    f->glGetIntegerv(GL_MAX_PATCH_VERTICES, &MaxPatchVertices);
+    qDebug()<<MaxPatchVertices;
+    f->glPatchParameteri(GL_PATCH_VERTICES, 3);
+    qDebug()<<MaxPatchVertices;
     //compile shaders
-    defaultShader = LoadShaders( ":/default shader/vertexShader.vert", ":/default shader/fragmentShader.frag");
-    normalShader=LoadShaders( ":/normal shader/normalVertex.vert",  ":/normal shader/normalFragment.frag",":/normal shader/normalGeometry.gs");
-    int index=0;
-    GLfloat offset = 4.0f;
-    for(GLint y =-50; y < 50; y ++)
-    {
-        for(GLint x =-50; x < 50; x ++)
-        {
-            QVector3D translation=QVector3D(x*offset,y*offset,0);
-            translations[index++] = translation;
-        }
-    }
+    defaultShader = LoadShaders( ":/lighting.vert", ":/lighting.frag",NULL,":/lighting.cs",":/lighting.es");
+
 }
 void MyGLwidget::paintGL(){
     QOpenGLFunctions_4_4_Core *f=QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_4_4_Core>();
@@ -247,36 +267,25 @@ void MyGLwidget::paintGL(){
                 nullptr            // array buffer offset
                 );
     //Camera transformation
-    QMatrix4x4 Projection,View,Model;
+    QMatrix4x4 Projection,View,Model,MVP;
     Projection.perspective(45.0f,(float)(this->width()/this->height()),0.1f,100.0f);
     View.rotate(m_trackBalls.getRotation());
     View(2, 3) -=m_trackBalls.getZoomFactor();
-    glUseProgram(defaultShader);
-    //Transfer data into Opengl pipeline, communnicate with shader
-    f->glUniformMatrix4fv(f->glGetUniformLocation(defaultShader,"projection"),1,GL_FALSE,Projection.constData());
-    f->glUniformMatrix4fv(f->glGetUniformLocation(defaultShader,"view"),1,GL_FALSE,View.constData());
-    f->glUniformMatrix4fv(f->glGetUniformLocation(defaultShader,"model"),1,GL_FALSE,Model.constData());
-    f->glUniform1f(f->glGetUniformLocation(defaultShader,"myTextureSampler"),textureID->textureId());
-    for(GLuint i = 0; i < 10000; i++)
-    {
-        QString index="offsets["+QString::number(i)+"]";
-        f->glUniform3f(glGetUniformLocation(defaultShader,index.toStdString().c_str()),translations[i].x(),translations[i].y(),translations[i].z());
-    }
+    MVP=Projection*View*Model;
+    //vertex shader attribute
+    f->glUniformMatrix4fv(f->glGetUniformLocation(defaultShader,"gWorld"),1,GL_FALSE,Model.constData());
+    //tesselation control shader attribute
+    f->glUniform3f(f->glGetUniformLocation(defaultShader,"gEyeWorldPos"),m_trackBalls.getRotation().vector().x(),m_trackBalls.getRotation().vector().y(),m_trackBalls.getRotation().vector().z());
+    //tesselation evaluator shader attribute
+    f->glUniformMatrix4fv(f->glGetUniformLocation(defaultShader,"gVP"),1,GL_FALSE,MVP.constData());
+    //fragment shader attribute
+    f->glUniform1f(f->glGetUniformLocation(defaultShader,"gColorMap"),textureID->textureId());
+
     textureID->bind(0);
     // Draw the triangle !
     // Use our shader
     glUseProgram(defaultShader);
-//    f->glDrawArrays(GL_TRIANGLES, 0, 12*3); // Starting from vertex 0; 3 vertices total -> 1 triangle
-    f->glDrawArraysInstanced(GL_TRIANGLES, 0, 12*3,10000);
-    //Transfer data into Opengl pipeline, communnicate with shader
-    f->glUniformMatrix4fv(f->glGetUniformLocation(normalShader,"projection"),1,GL_FALSE,Projection.constData());
-    f->glUniformMatrix4fv(f->glGetUniformLocation(normalShader,"view"),1,GL_FALSE,View.constData());
-    f->glUniformMatrix4fv(f->glGetUniformLocation(normalShader,"model"),1,GL_FALSE,Model.constData());
-    f->glUniform1f(f->glGetUniformLocation(normalShader,"myTextureSampler"),textureID->textureId());
-    //Display normal vector of each vertices
-    glUseProgram(normalShader);
-    f->glDrawArrays(GL_TRIANGLES, 0, 12*3);
-    f->glViewport(int(this->width()/2),0,this->width()/2,this->height()/2);
+    f->glDrawArrays(GL_PATCHES, 0, 3); // Starting from vertex 0; 3 vertices total -> 1 triangle;
     f->glDisableVertexAttribArray(0);
     f->glDisableVertexAttribArray(1);
     f->glDisableVertexAttribArray(2);

@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file>texture.jpeg</file>
+        <file>lighting.vert</file>
+        <file>lighting.cs</file>
+        <file>lighting.es</file>
+        <file>lighting.frag</file>
+    </qresource>
+</RCC>
